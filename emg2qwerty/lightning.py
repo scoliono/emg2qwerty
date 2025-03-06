@@ -158,6 +158,48 @@ class TDSConvCTCModule(pl.LightningModule):
 
         # Model
         # inputs: (T, N, bands=2, electrode_channels=16, freq)
+
+        #SARA EDIT START
+        #initial preprocessing layers, same as original
+        self.preprocess = nn.Sequential(
+            # (T, N, bands=2, C=16, freq)
+            SpectrogramNorm(channels=self.NUM_BANDS * self.ELECTRODE_CHANNELS),
+            # (T, N, bands=2, mlp_features[-1])
+            MultiBandRotationInvariantMLP(
+                in_features=in_features,
+                mlp_features=mlp_features,
+                num_bands=self.NUM_BANDS,
+            ),
+            # (T, N, num_features)
+            nn.Flatten(start_dim=2),
+        )
+
+        #RNN (using LSTM) layer (
+        self.rnn = nn.LSTM(
+            input_size=num_features,
+            hidden_size=num_features,  #keep same dim as input
+            num_layers=2,
+            dropout=0.2,
+            batch_first=False,  #input: (T, N, features)
+            bidirectional=True  #use bidirectional for better context (not entirely sure what this means)
+        )
+        #additional processing after RNN
+        #output dimension from bidirectional LSTM is 2*hidden_size
+        self.post_rnn = nn.Sequential(
+            nn.Linear(num_features * 2, num_features),
+            nn.LayerNorm(num_features),
+            nn.ReLU(),
+        )
+        
+        #final classifier, same as original
+        self.classifier = nn.Sequential(
+            nn.Linear(num_features, charset().num_classes),
+            nn.LogSoftmax(dim=-1),
+        )
+        
+
+
+        '''
         self.model = nn.Sequential(
             # (T, N, bands=2, C=16, freq)
             SpectrogramNorm(channels=self.NUM_BANDS * self.ELECTRODE_CHANNELS),
@@ -177,7 +219,9 @@ class TDSConvCTCModule(pl.LightningModule):
             # (T, N, num_classes)
             nn.Linear(num_features, charset().num_classes),
             nn.LogSoftmax(dim=-1),
-        )
+        )'''
+
+        #EDIT MODEL ABOVE
 
         # Criterion
         self.ctc_loss = nn.CTCLoss(blank=charset().null_class)
@@ -195,7 +239,13 @@ class TDSConvCTCModule(pl.LightningModule):
         )
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
-        return self.model(inputs)
+        #return self.model(inputs) #ORIGINAL
+        #EDITED BY SARA START
+        x = self.preprocess(inputs) #process thru initial layers
+        rnn_out, _ = self.rnn(x) #process thru RNN, LSTM returns (output, (h_n, c_n))
+        x = self.post_rnn(rnn_out) #post-processing
+        return self.classifier(x) #final classificiation
+    #EDITED BY SARA END
 
     def _step(
         self, phase: str, batch: dict[str, torch.Tensor], *args, **kwargs
