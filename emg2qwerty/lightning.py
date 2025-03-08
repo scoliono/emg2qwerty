@@ -25,6 +25,7 @@ from emg2qwerty.modules import (
     MultiBandRotationInvariantMLP,
     SpectrogramNorm,
     TDSConvEncoder,
+    Transformer
 )
 from emg2qwerty.transforms import Transform
 
@@ -150,7 +151,10 @@ class TDSConvCTCModule(pl.LightningModule):
         optimizer: DictConfig,
         lr_scheduler: DictConfig,
         decoder: DictConfig,
-        trans_mlp_features: int = 0,
+        trans_mlp_features: int = 2048,
+        trans_num_encoder_layers: int = 3,
+        trans_num_decoder_layers: int = 3,
+        trans_dropout_p: int = 0.1,
     ) -> None:
         super().__init__()
         self.save_hyperparameters()
@@ -160,7 +164,7 @@ class TDSConvCTCModule(pl.LightningModule):
         # Model
         # inputs: (T, N, bands=2, electrode_channels=16, freq)
         
-        """
+        
         self.model = nn.Sequential(
             # (T, N, bands=2, C=16, freq)
             SpectrogramNorm(channels=self.NUM_BANDS * self.ELECTRODE_CHANNELS),
@@ -172,17 +176,24 @@ class TDSConvCTCModule(pl.LightningModule):
             ),
             # (T, N, num_features)
             nn.Flatten(start_dim=2),
+            """
             TDSConvEncoder(
                 num_features=num_features,
                 block_channels=block_channels,
                 kernel_width=kernel_width,
             ),
+            """
+            TDSLSTMEncoder(
+                num_features = num_features,
+                lstm_hidden_size = 128,
+                num_lstm_layers = 4
+            ),
             # (T, N, num_classes)
             nn.Linear(num_features, charset().num_classes),
             nn.LogSoftmax(dim=-1),
         )
-        """
-        self.model = nn.Sequential(
+        
+        self.preprocess = nn.Sequential(
             # (T, N, bands=2, C=16, freq)
             SpectrogramNorm(channels=self.NUM_BANDS * self.ELECTRODE_CHANNELS),
             # (T, N, bands=2, mlp_features[-1])
@@ -192,9 +203,22 @@ class TDSConvCTCModule(pl.LightningModule):
                 num_bands=self.NUM_BANDS,
             ),
             # (T, N, num_features)
-            nn.Flatten(start_dim=2),
-            nn.Transformer(d_model=num_features, nhead=block_channels[0], dim_feedforward=trans_mlp_features),
-            # (T, N, num_classes)
+            nn.Flatten(start_dim=2),    
+        )
+
+
+        self.transformer = Transformer(
+            d_model=num_features,
+            dropout=trans_dropout_p,
+            num_tokens=num_features,
+            nhead=block_channels[0],
+            dim_feedforward=trans_mlp_features,
+            num_encoder_layers=trans_num_encoder_layers,
+            num_decoder_layers=trans_num_decoder_layers,
+        )
+        
+        #final classifier, same as original
+        self.classifier = nn.Sequential(
             nn.Linear(num_features, charset().num_classes),
             nn.LogSoftmax(dim=-1),
         )
@@ -215,7 +239,9 @@ class TDSConvCTCModule(pl.LightningModule):
         )
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
-        return self.model(inputs)
+        x = self.preprocess(inputs) #process thru initial layers
+        trans_out = self.transformer(x) #process thru transformer
+        return self.classifier(trans_out) #final classificiation
 
     def _step(
         self, phase: str, batch: dict[str, torch.Tensor], *args, **kwargs
