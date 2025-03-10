@@ -94,6 +94,39 @@ class Compose:
             data = transform(data)
         return data
 
+@dataclass
+class RandomScaling:   
+    min_factor: float = 0.98
+    max_factor: float = 1.02
+    channel_dim: int = -1
+
+    def __call__(self, tensor: torch.Tensor) -> torch.Tensor:
+        scale = np.random.uniform(self.min_factor, self.max_factor)
+        return tensor * scale
+    
+@dataclass
+class RandomGaussianNoise:
+    mean: float = 0.0
+    std: float = 0.05
+
+    def __call__(self, tensor: torch.Tensor) -> torch.Tensor:        
+        noise = torch.randn_like(tensor) * self.std + self.mean
+        return tensor + noise
+
+@dataclass    
+class RandomChannelDropout:
+    p: float = 0.1
+    channel_dim: int = -1
+
+    def __call__(self, tensor: torch.Tensor) -> torch.Tensor:
+        num_channels = tensor.shape[self.channel_dim]
+        dropout_mask = torch.rand(num_channels) > self.p
+        mask_shape = [1] * tensor.ndim
+        mask_shape[self.channel_dim] = num_channels
+        #dropout_mask = dropout_mask.view(mask_shape).to(tensor.device)
+
+        return tensor * dropout_mask
+
 
 @dataclass
 class RandomBandRotation:
