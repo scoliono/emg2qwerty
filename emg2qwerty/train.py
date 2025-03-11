@@ -42,8 +42,8 @@ def main(config: DictConfig):
     pl.seed_everything(config.seed, workers=True)
 
     # Helper to instantiate full paths for dataset sessions
-    def _full_session_paths(dataset: ListConfig) -> list[Path]:
-        sessions = [session["session"] for session in dataset]
+    def _full_session_paths(dataset: ListConfig, num_sessions: int) -> list[Path]:
+        sessions = [session["session"] for session in dataset[:num_sessions]]
         return [
             Path(config.dataset.root).joinpath(f"{session}.hdf5")
             for session in sessions

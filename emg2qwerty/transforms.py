@@ -203,15 +203,18 @@ class LogSpectrogram:
 
     n_fft: int = 64
     hop_length: int = 16
+    n_mel: int = 6
 
     def __post_init__(self) -> None:
-        self.spectrogram = torchaudio.transforms.Spectrogram(
+        self.spectrogram = torchaudio.transforms.MelSpectrogram(
+            sample_rate=16000,
             n_fft=self.n_fft,
             hop_length=self.hop_length,
             normalized=True,
             # Disable centering of FFT windows to avoid padding inconsistencies
             # between train and test (due to differing window lengths), as well
             # as to be more faithful to real-time/streaming execution.
+            n_mel = self.n_mel
             center=False,
         )
 
@@ -276,3 +279,118 @@ class SpecAugment:
 
         # (..., C, freq, T) -> (T, ..., C, freq)
         return x.movedim(-1, 0)
+
+@dataclass
+class VariableHopLength:
+    """Creates a log10-scaled spectrogram with variable hop length.
+
+    Args:
+        n_fft (int): Size of FFT, creates n_fft // 2 + 1 frequency bins.
+        hop_length_range (tuple): Range of hop lengths.
+    """
+    n_fft: int = 64
+    hop_length_range: tuple[int, int] = (8, 32)
+
+    def __call__(self, tensor: torch.Tensor) -> torch.Tensor:
+        hop_length = np.random.randint(self.hop_length_range[0], self.hop_length_range[1] + 1)
+        spectrogram = torchaudio.transforms.Spectrogram(
+            n_fft=self.n_fft,
+            hop_length=hop_length,
+            normalized=True,
+            center=False,
+        )
+        x = tensor.movedim(0, -1)  # (T, ..., C) -> (..., C, T)
+        spec = spectrogram(x)  # (..., C, freq, T)
+        logspec = torch.log10(spec + 1e-6)  # (..., C, freq, T)
+        return logspec.movedim(-1, 0)  # (T, ..., C, freq)
+
+@dataclass
+class VariableFFT:
+    """Creates a log10-scaled spectrogram with variable FFT size.
+
+    Args:
+        n_fft_range (tuple): Range of FFT.
+        hop_length (int): Number of samples to stride between consecutive STFT windows.
+    """
+    n_fft_range: tuple[int, int] = (32, 128)
+    hop_length: int = 16
+
+    def __call__(self, tensor: torch.Tensor) -> torch.Tensor:
+        n_fft = np.random.randint(self.n_fft_range[0], self.n_fft_range[1] + 1)
+        spectrogram = torchaudio.transforms.Spectrogram(
+            n_fft=n_fft,
+            hop_length=self.hop_length,
+            normalized=True,
+            center=False,
+        )
+        x = tensor.movedim(0, -1)  # (T, ..., C) -> (..., C, T)
+        spec = spectrogram(x)  # (..., C, freq, T)
+        logspec = torch.log10(spec + 1e-6)  # (..., C, freq, T)
+        return logspec.movedim(-1, 0)  # (T, ..., C, freq)
+    
+@dataclass
+class RandomElectrodeShift:
+    """Applies a random shift to the electrodes for each hand.
+
+    Args:
+        shifts (list): Possible shifts to apply (e.g., [-1, 0, 1]).
+    """
+    shifts: Sequence[int] = (-1, 0, 1)
+
+    def __call__(self, tensor: torch.Tensor) -> torch.Tensor:
+        l_shift = np.random.choice(self.shifts)
+        r_shift = np.random.choice(self.shifts)
+        l_hand = tensor[:, 0, :]
+        r_hand = tensor[:, 1, :]
+        
+        tensor[:, 0, :] = torch.roll(l_hand, shifts=l_shift, dims=-1)
+        tensor[:, 1, :] = torch.roll(r_hand, shifts=r_shift, dims=-1)
+        
+        return tensor
+
+@dataclass
+class SpatialWarping:
+    """Applies spatial warping to the EMG signals.
+
+    Args:
+        max_warp (float): Maximum warp factor for spatial warping.
+    """
+    max_warp: float = 0.1
+
+    def __call__(self, tensor: torch.Tensor) -> torch.Tensor:
+        warp = torch.FloatTensor(tensor.shape[-1]).uniform_(-self.max_warp, self.max_warp)
+        tensor_new = tensor.clone()
+        for i in range(tensor.shape[-1]):
+            tensor_new[..., i] = tensor[..., i] * (1 + warp[i])
+        return tensor_new
+
+@dataclass
+class FrequencyWarping:
+    """Applies frequency warping augmentation.
+
+    Args:
+        max_warp (float): Maximum warp factor.
+    """
+    max_warp: float = 0.1
+
+    def __call__(self, spec: torch.Tensor) -> torch.Tensor:
+        warp_factor = np.random.uniform(-self.max_warp, self.max_warp)
+        freq_bins = spec.size(-2)
+        warp_indices = torch.arange(freq_bins, dtype=torch.float32) * (1 + warp_factor)
+        warp_indices = torch.clamp(warp_indices, 0, freq_bins - 1).long()
+        return spec.index_select(-2, warp_indices)
+
+@dataclass
+class RunningTimeNormalization:
+    """Applies running time normalization to the EMG signals.
+
+    Args:
+        epsilon (float): Small value to avoid division by zero.
+    """
+    epsilon: float = 1e-6
+
+    def __call__(self, tensor: torch.Tensor) -> torch.Tensor:
+        mu = tensor.mean(dim=-1, keepdim=True)
+        std = tensor.std(dim=-1, keepdim=True) + self.epsilon
+        tensor_new = (tensor - mu) / std
+        return tensor_new
