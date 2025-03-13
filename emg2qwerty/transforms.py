@@ -107,7 +107,7 @@ class RandomScaling:
 @dataclass
 class RandomGaussianNoise:
     mean: float = 0.0
-    std: float = 0.05
+    std: float = 0.005
 
     def __call__(self, tensor: torch.Tensor) -> torch.Tensor:        
         noise = torch.randn_like(tensor) * self.std + self.mean
@@ -205,7 +205,7 @@ class LogSpectrogram:
     hop_length: int = 16
     n_mel: int = 6
 
-    def __post_init__(self) -> None:
+    '''def __post_init__(self) -> None:
         self.spectrogram = torchaudio.transforms.MelSpectrogram(
             sample_rate=16000,
             n_fft=self.n_fft,
@@ -214,7 +214,19 @@ class LogSpectrogram:
             # Disable centering of FFT windows to avoid padding inconsistencies
             # between train and test (due to differing window lengths), as well
             # as to be more faithful to real-time/streaming execution.
-            n_mel = self.n_mel
+            n_mel = self.n_mel,
+            center=False,
+        )'''
+    def __post_init__(self) -> None:
+        self.spectrogram = torchaudio.transforms.Spectrogram(
+
+            n_fft=self.n_fft,
+            hop_length=self.hop_length,
+            normalized=True,
+            # Disable centering of FFT windows to avoid padding inconsistencies
+            # between train and test (due to differing window lengths), as well
+            # as to be more faithful to real-time/streaming execution.
+
             center=False,
         )
 
@@ -327,26 +339,6 @@ class VariableFFT:
         spec = spectrogram(x)  # (..., C, freq, T)
         logspec = torch.log10(spec + 1e-6)  # (..., C, freq, T)
         return logspec.movedim(-1, 0)  # (T, ..., C, freq)
-    
-@dataclass
-class RandomElectrodeShift:
-    """Applies a random shift to the electrodes for each hand.
-
-    Args:
-        shifts (list): Possible shifts to apply (e.g., [-1, 0, 1]).
-    """
-    shifts: Sequence[int] = (-1, 0, 1)
-
-    def __call__(self, tensor: torch.Tensor) -> torch.Tensor:
-        l_shift = np.random.choice(self.shifts)
-        r_shift = np.random.choice(self.shifts)
-        l_hand = tensor[:, 0, :]
-        r_hand = tensor[:, 1, :]
-        
-        tensor[:, 0, :] = torch.roll(l_hand, shifts=l_shift, dims=-1)
-        tensor[:, 1, :] = torch.roll(r_hand, shifts=r_shift, dims=-1)
-        
-        return tensor
 
 @dataclass
 class SpatialWarping:
