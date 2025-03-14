@@ -25,6 +25,7 @@ from emg2qwerty.modules import (
     MultiBandRotationInvariantMLP,
     SpectrogramNorm,
     TDSConvEncoder,
+    TDSLSTMEncoder,
 )
 from emg2qwerty.transforms import Transform
 
@@ -137,7 +138,7 @@ class WindowedEMGDataModule(pl.LightningDataModule):
         )
 
 
-class TDSConvCTCModule(pl.LightningModule):
+class TDSLSTMCTCModule(pl.LightningModule):
     NUM_BANDS: ClassVar[int] = 2
     ELECTRODE_CHANNELS: ClassVar[int] = 16
 
@@ -196,12 +197,12 @@ class TDSConvCTCModule(pl.LightningModule):
         )
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
-        #return self.model(inputs) #ORIGINAL
+        return self.model(inputs) #ORIGINAL
         #edited by sara
-        x = self.preprocess(inputs) #process thru initial layers
-        rnn_out, _ = self.rnn(x) #process thru RNN, LSTM returns (output, (h_n, c_n))
-        x = self.post_rnn(rnn_out) #post-processing
-        return self.classifier(x) #final classificiation
+        #x = self.preprocess(inputs) #process thru initial layers
+        #rnn_out, _ = self.rnn(x) #process thru RNN, LSTM returns (output, (h_n, c_n))
+        #x = self.post_rnn(rnn_out) #post-processing
+        #return self.classifier(x) #final classificiation
     
 
     def _step(

@@ -65,7 +65,7 @@ transforms:
     - ${to_tensor}
     - ${random_noise}
     - ${temporal_jitter} 
-    - ${logspec}
+    - ${variablehop}
     - ${specaug}
     - ${band_rotation}
 
