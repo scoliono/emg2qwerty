@@ -204,24 +204,6 @@ class LogSpectrogram:
     n_fft: int = 64
     hop_length: int = 16
 
-<<<<<<< Updated upstream
-    '''def __post_init__(self) -> None:
-        self.spectrogram = torchaudio.transforms.MelSpectrogram(
-            sample_rate=16000,
-=======
-    def __post_init__(self) -> None:
-        self.spectrogram = torchaudio.transforms.Spectrogram(
->>>>>>> Stashed changes
-            n_fft=self.n_fft,
-            hop_length=self.hop_length,
-            normalized=True,
-            # Disable centering of FFT windows to avoid padding inconsistencies
-            # between train and test (due to differing window lengths), as well
-            # as to be more faithful to real-time/streaming execution.
-<<<<<<< Updated upstream
-            n_mel = self.n_mel,
-            center=False,
-        )'''
     def __post_init__(self) -> None:
         self.spectrogram = torchaudio.transforms.Spectrogram(
 
@@ -232,8 +214,6 @@ class LogSpectrogram:
             # between train and test (due to differing window lengths), as well
             # as to be more faithful to real-time/streaming execution.
 
-=======
->>>>>>> Stashed changes
             center=False,
         )
 
@@ -298,7 +278,6 @@ class SpecAugment:
 
         # (..., C, freq, T) -> (T, ..., C, freq)
         return x.movedim(-1, 0)
-<<<<<<< Updated upstream
 
 @dataclass
 class VariableHopLength:
@@ -394,5 +373,3 @@ class RunningTimeNormalization:
         std = tensor.std(dim=-1, keepdim=True) + self.epsilon
         tensor_new = (tensor - mu) / std
         return tensor_new
-=======
->>>>>>> Stashed changes
