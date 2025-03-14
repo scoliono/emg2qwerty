@@ -317,17 +317,6 @@ class TDSTransformerCTCModule(pl.LightningModule):
             )            
         )
 
-
-        self.transformer = Transformer(
-            d_model=num_features,
-            dropout=trans_dropout_p,
-            num_tokens=num_features,
-            nhead=trans_num_heads,
-            dim_feedforward=trans_mlp_features,
-            num_encoder_layers=trans_num_encoder_layers,
-            num_decoder_layers=trans_num_decoder_layers,
-        )
-
         # Out size = (batch_size, sequence length, dim_model)
         self.pos_enc = PositionalEncoding(
             dim_model=num_features,
