@@ -238,6 +238,30 @@ class TDSFullyConnectedBlock(nn.Module):
         x = self.fc_block(x)
         x = x + inputs
         return self.layer_norm(x)  # TNC
+    
+#module below added by sara
+class TDSLSTMEncoder(nn.Module):
+    def __init__(self, num_features: int, lstm_hidden_size: int = 128, num_lstm_layers: int = 4,) -> None:
+        super().__init__()
+        
+        #use pytorch LSTM function
+        self.lstm_layers = nn.LSTM(
+                input_size = num_features, 
+                hidden_size = lstm_hidden_size, 
+                num_layers = num_lstm_layers, 
+                batch_first = False, 
+                bidirectional = True
+            )
+        #fc block
+        self.fc_block = TDSFullyConnectedBlock(lstm_hidden_size * 2)
+        self.out_layer = nn.Linear(lstm_hidden_size * 2, num_features)
+
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+        x, _ = self.lstm_layers(inputs)
+        x = self.fc_block(x)
+        x = self.out_layer(x)
+        print("shape after TDSLSTMEncoder: ", x.shape)
+        return x
 
 
 class TDSConvEncoder(nn.Module):

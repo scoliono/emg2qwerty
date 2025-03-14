@@ -158,6 +158,7 @@ class TDSConvCTCModule(pl.LightningModule):
 
         # Model
         # inputs: (T, N, bands=2, electrode_channels=16, freq)
+
         self.model = nn.Sequential(
             # (T, N, bands=2, C=16, freq)
             SpectrogramNorm(channels=self.NUM_BANDS * self.ELECTRODE_CHANNELS),
@@ -169,10 +170,10 @@ class TDSConvCTCModule(pl.LightningModule):
             ),
             # (T, N, num_features)
             nn.Flatten(start_dim=2),
-            TDSConvEncoder(
-                num_features=num_features,
-                block_channels=block_channels,
-                kernel_width=kernel_width,
+            TDSLSTMEncoder(
+                num_features = num_features,
+                lstm_hidden_size = 128,
+                num_lstm_layers = 4
             ),
             # (T, N, num_classes)
             nn.Linear(num_features, charset().num_classes),
@@ -195,7 +196,13 @@ class TDSConvCTCModule(pl.LightningModule):
         )
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
-        return self.model(inputs)
+        #return self.model(inputs) #ORIGINAL
+        #edited by sara
+        x = self.preprocess(inputs) #process thru initial layers
+        rnn_out, _ = self.rnn(x) #process thru RNN, LSTM returns (output, (h_n, c_n))
+        x = self.post_rnn(rnn_out) #post-processing
+        return self.classifier(x) #final classificiation
+    
 
     def _step(
         self, phase: str, batch: dict[str, torch.Tensor], *args, **kwargs

@@ -34,7 +34,6 @@ callbacks:
 
 dataset:
   root: ${hydra:runtime.cwd}/data
-  num_train_sessions: 10
 
 hydra:
   run:
