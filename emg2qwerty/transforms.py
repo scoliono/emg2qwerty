@@ -203,20 +203,7 @@ class LogSpectrogram:
 
     n_fft: int = 64
     hop_length: int = 16
-    n_mel: int = 6
 
-    '''def __post_init__(self) -> None:
-        self.spectrogram = torchaudio.transforms.MelSpectrogram(
-            sample_rate=16000,
-            n_fft=self.n_fft,
-            hop_length=self.hop_length,
-            normalized=True,
-            # Disable centering of FFT windows to avoid padding inconsistencies
-            # between train and test (due to differing window lengths), as well
-            # as to be more faithful to real-time/streaming execution.
-            n_mel = self.n_mel,
-            center=False,
-        )'''
     def __post_init__(self) -> None:
         self.spectrogram = torchaudio.transforms.Spectrogram(
 
