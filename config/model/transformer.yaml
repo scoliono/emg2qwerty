@@ -10,7 +10,7 @@ module:
   trans_num_decoder_layers: 3
   trans_dropout_p: 0.1
   trans_num_heads: 2
-  trans_max_len: 498
+  trans_max_len: 2048
 
 datamodule:
   _target_: emg2qwerty.lightning.WindowedEMGDataModule
