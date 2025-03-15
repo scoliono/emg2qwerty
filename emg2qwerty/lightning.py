@@ -422,7 +422,7 @@ class TDSTransformerCTCModule(pl.LightningModule):
         trans_num_heads: int = 2,
         trans_num_encoder_layers: int = 3,
         trans_num_decoder_layers: int = 3,
-        trans_dropout_p: int = 0.1,
+        trans_dropout_p: float = 0.1,
         trans_max_len: int = 48,
     ) -> None:
         super().__init__()
